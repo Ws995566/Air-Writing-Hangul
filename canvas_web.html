@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Korean Air Canvas</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #0d0d14;
+    color: #e0e0f0;
+    font-family: 'Segoe UI', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 24px 16px;
+  }
+
+  h1 {
+    font-size: 1.8rem;
+    color: #00e87a;
+    margin-bottom: 6px;
+    letter-spacing: 1px;
+  }
+
+  .subtitle {
+    color: #7070a0;
+    font-size: 0.85rem;
+    margin-bottom: 24px;
+  }
+
+  .workspace {
+    display: flex;
+    gap: 24px;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    justify-content: center;
+    width: 100%;
+    max-width: 1100px;
+  }
+
+  /* ── Canvas panel ── */
+  .canvas-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .toolbar {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    background: #161620;
+    padding: 10px 14px;
+    border-radius: 10px;
+    border: 1px solid #2a2a40;
+    flex-wrap: wrap;
+  }
+
+  .swatch {
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    border: 2px solid transparent;
+    cursor: pointer;
+    transition: transform 0.15s, border-color 0.15s;
+  }
+  .swatch:hover { transform: scale(1.15); }
+  .swatch.active { border-color: #00e87a; transform: scale(1.15); }
+
+  .divider { width: 1px; height: 32px; background: #2a2a40; }
+
+  .tool-btn {
+    padding: 6px 14px;
+    border-radius: 6px;
+    border: none;
+    cursor: pointer;
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    transition: opacity 0.15s, transform 0.1s;
+  }
+  .tool-btn:hover { opacity: 0.85; transform: scale(1.04); }
+  .tool-btn:active { transform: scale(0.97); }
+
+  .btn-eraser  { background: #333350; color: #a0a0c0; }
+  .btn-clear   { background: #5a1a1a; color: #ff8080; }
+  .btn-undo    { background: #3a3000; color: #ffcc44; }
+  .btn-analyze { background: #004d26; color: #00e87a; }
+
+  /* Brush size */
+  .brush-wrap {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.75rem;
+    color: #7070a0;
+  }
+  input[type=range] {
+    width: 80px;
+    accent-color: #00e87a;
+  }
+
+  canvas {
+    background: #1a1a2a;
+    border-radius: 12px;
+    border: 2px solid #2a2a40;
+    cursor: crosshair;
+    touch-action: none;
+    display: block;
+  }
+  canvas.eraser-mode { cursor: cell; }
+
+  .canvas-hint {
+    text-align: center;
+    font-size: 0.75rem;
+    color: #404060;
+    margin-top: 4px;
+  }
+
+  /* ── Result panel ── */
+  .result-panel {
+    background: #161620;
+    border: 1px solid #2a2a40;
+    border-radius: 12px;
+    padding: 24px;
+    width: 300px;
+    min-height: 400px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .result-title {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #00e87a;
+    border-bottom: 1px solid #2a2a40;
+    padding-bottom: 10px;
+  }
+
+  .result-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .result-label {
+    font-size: 0.7rem;
+    color: #505070;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .result-value {
+    font-size: 1.1rem;
+    color: #e0e0ff;
+    background: #0d0d14;
+    border-radius: 6px;
+    padding: 8px 12px;
+    min-height: 38px;
+    word-break: break-word;
+  }
+
+  .result-value.korean { font-size: 2rem; text-align: center; letter-spacing: 4px; }
+  .result-value.confidence { font-size: 0.9rem; color: #7070a0; }
+
+  .status-bar {
+    font-size: 0.78rem;
+    padding: 8px 12px;
+    border-radius: 6px;
+    text-align: center;
+    background: #0d0d14;
+  }
+  .status-bar.idle    { color: #404060; }
+  .status-bar.loading { color: #ffcc44; animation: pulse 1s infinite; }
+  .status-bar.success { color: #00e87a; }
+  .status-bar.error   { color: #ff6060; }
+
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  /* ── History ── */
+  .history-title {
+    font-size: 0.7rem;
+    color: #505070;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-top: 8px;
+  }
+
+  .history-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 160px;
+    overflow-y: auto;
+  }
+
+  .history-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #0d0d14;
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 0.8rem;
+    color: #a0a0c0;
+  }
+
+  .history-item .kor { font-size: 1.1rem; color: #e0e0ff; }
+</style>
+</head>
+<body>
+
+<h1>✏ Korean Canvas</h1>
+<p class="subtitle">Draw Korean characters — click Analyze to recognize</p>
+
+<div class="workspace">
+
+  <!-- ── Canvas Panel ── -->
+  <div class="canvas-panel">
+    <div class="toolbar">
+      <!-- Color swatches -->
+      <div class="swatch active" style="background:#ffffff" data-color="#ffffff" title="White"></div>
+      <div class="swatch" style="background:#ff4444" data-color="#ff4444" title="Red"></div>
+      <div class="swatch" style="background:#44aaff" data-color="#44aaff" title="Blue"></div>
+      <div class="swatch" style="background:#44ff88" data-color="#44ff88" title="Green"></div>
+      <div class="swatch" style="background:#ffcc00" data-color="#ffcc00" title="Yellow"></div>
+      <div class="swatch" style="background:#cc44ff" data-color="#cc44ff" title="Purple"></div>
+
+      <div class="divider"></div>
+
+      <!-- Brush size -->
+      <div class="brush-wrap">
+        <span>Brush</span>
+        <input type="range" id="brushSize" min="2" max="30" value="8">
+        <span id="brushLabel">8px</span>
+      </div>
+
+      <div class="divider"></div>
+
+      <button class="tool-btn btn-eraser"  id="btnEraser">Eraser</button>
+      <button class="tool-btn btn-undo"    id="btnUndo">Undo</button>
+      <button class="tool-btn btn-clear"   id="btnClear">Clear</button>
+      <button class="tool-btn btn-analyze" id="btnAnalyze">▶ Analyze</button>
+    </div>
+
+    <canvas id="drawCanvas" width="700" height="500"></canvas>
+    <p class="canvas-hint">Draw with mouse · Left click = draw · Right click = erase</p>
+  </div>
+
+  <!-- ── Result Panel ── -->
+  <div class="result-panel">
+    <div class="result-title">🔍 Analysis Result</div>
+
+    <div class="result-field">
+      <span class="result-label">Korean</span>
+      <div class="result-value korean" id="resKorean">—</div>
+    </div>
+
+    <div class="result-field">
+      <span class="result-label">Romanization</span>
+      <div class="result-value" id="resRoman">—</div>
+    </div>
+
+    <div class="result-field">
+      <span class="result-label">Translation</span>
+      <div class="result-value" id="resTrans">—</div>
+    </div>
+
+    <div class="result-field">
+      <span class="result-label">Confidence</span>
+      <div class="result-value confidence" id="resConf">—</div>
+    </div>
+
+    <div class="status-bar idle" id="statusBar">Ready — draw something and click Analyze</div>
+
+    <div class="history-title">History</div>
+    <div class="history-list" id="historyList"></div>
+  </div>
+
+</div>
+
+<script>
+// ── Canvas setup ──────────────────────────────────────────────────────────── //
+const canvas  = document.getElementById('drawCanvas');
+const ctx     = canvas.getContext('2d');
+
+let isDrawing  = false;
+let isErasing  = false;
+let drawColor  = '#ffffff';
+let brushSize  = 8;
+let lastX      = 0;
+let lastY      = 0;
+
+// Undo stack — store canvas states
+let undoStack  = [];
+const MAX_UNDO = 20;
+
+function saveState() {
+  undoStack.push(canvas.toDataURL());
+  if (undoStack.length > MAX_UNDO) undoStack.shift();
+}
+
+function restoreState() {
+  if (!undoStack.length) return;
+  const img = new Image();
+  img.src   = undoStack.pop();
+  img.onload = () => { ctx.clearRect(0,0,canvas.width,canvas.height); ctx.drawImage(img,0,0); };
+}
+
+// ── Drawing logic ─────────────────────────────────────────────────────────── //
+function getPos(e) {
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  if (e.touches) {
+    return {
+      x: (e.touches[0].clientX - rect.left) * scaleX,
+      y: (e.touches[0].clientY - rect.top)  * scaleY
+    };
+  }
+  return {
+    x: (e.clientX - rect.left) * scaleX,
+    y: (e.clientY - rect.top)  * scaleY
+  };
+}
+
+function startDraw(e) {
+  e.preventDefault();
+  saveState();
+  isDrawing = true;
+  isErasing = e.button === 2;   // right click = erase
+  const {x, y} = getPos(e);
+  lastX = x; lastY = y;
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+}
+
+function draw(e) {
+  e.preventDefault();
+  if (!isDrawing) return;
+  const {x, y} = getPos(e);
+  ctx.lineWidth   = isErasing ? brushSize * 3 : brushSize;
+  ctx.lineCap     = 'round';
+  ctx.lineJoin    = 'round';
+  ctx.strokeStyle = isErasing ? '#1a1a2a' : drawColor;
+  ctx.globalCompositeOperation = isErasing ? 'destination-out' : 'source-over';
+  ctx.beginPath();
+  ctx.moveTo(lastX, lastY);
+  ctx.lineTo(x, y);
+  ctx.stroke();
+  lastX = x; lastY = y;
+}
+
+function stopDraw(e) {
+  isDrawing = false;
+  ctx.globalCompositeOperation = 'source-over';
+}
+
+// Mouse
+canvas.addEventListener('mousedown',  startDraw);
+canvas.addEventListener('mousemove',  draw);
+canvas.addEventListener('mouseup',    stopDraw);
+canvas.addEventListener('mouseleave', stopDraw);
+canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+// Touch
+canvas.addEventListener('touchstart', startDraw, {passive:false});
+canvas.addEventListener('touchmove',  draw,      {passive:false});
+canvas.addEventListener('touchend',   stopDraw);
+
+// ── Toolbar controls ──────────────────────────────────────────────────────── //
+document.querySelectorAll('.swatch').forEach(s => {
+  s.addEventListener('click', () => {
+    document.querySelectorAll('.swatch').forEach(x => x.classList.remove('active'));
+    s.classList.add('active');
+    drawColor = s.dataset.color;
+    isErasing = false;
+    canvas.classList.remove('eraser-mode');
+  });
+});
+
+document.getElementById('brushSize').addEventListener('input', e => {
+  brushSize = parseInt(e.target.value);
+  document.getElementById('brushLabel').textContent = brushSize + 'px';
+});
+
+document.getElementById('btnEraser').addEventListener('click', () => {
+  isErasing = !isErasing;
+  canvas.classList.toggle('eraser-mode', isErasing);
+  document.getElementById('btnEraser').textContent = isErasing ? '✏ Draw' : 'Eraser';
+});
+
+document.getElementById('btnUndo').addEventListener('click', restoreState);
+
+document.getElementById('btnClear').addEventListener('click', () => {
+  saveState();
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+});
+
+// ── Analysis ──────────────────────────────────────────────────────────────── //
+function setStatus(msg, type='idle') {
+  const el = document.getElementById('statusBar');
+  el.textContent = msg;
+  el.className   = `status-bar ${type}`;
+}
+
+function addHistory(korean, confidence) {
+  const list = document.getElementById('historyList');
+  const item = document.createElement('div');
+  item.className = 'history-item';
+  item.innerHTML = `<span class="kor">${korean}</span><span>${(confidence*100).toFixed(0)}%</span>`;
+  list.insertBefore(item, list.firstChild);
+}
+
+document.getElementById('btnAnalyze').addEventListener('click', async () => {
+  setStatus('Analyzing...', 'loading');
+
+  // Convert canvas to blob
+  canvas.toBlob(async (blob) => {
+    if (!blob) { setStatus('Canvas is empty!', 'error'); return; }
+
+    const formData = new FormData();
+    formData.append('file', blob, 'canvas.png');
+
+    try {
+      const resp = await fetch('/analyze', { method: 'POST', body: formData });
+      const data = await resp.json();
+
+      if (data.success) {
+        const r = data.result;
+        document.getElementById('resKorean').textContent = r.korean        || '—';
+        document.getElementById('resRoman').textContent  = r.romanization  || '—';
+        document.getElementById('resTrans').textContent  = r.translation   || '—';
+        document.getElementById('resConf').textContent   =
+          r.confidence !== undefined ? (r.confidence * 100).toFixed(1) + '%' : '—';
+        setStatus('Done!', 'success');
+        if (r.korean) addHistory(r.korean, r.confidence || 0);
+      } else {
+        setStatus('Error: ' + data.error, 'error');
+      }
+    } catch(err) {
+      setStatus('Connection error — is the server running?', 'error');
+    }
+  }, 'image/png');
+});
+</script>
+</body>
+</html>
