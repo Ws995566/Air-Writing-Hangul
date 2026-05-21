@@ -1,0 +1,31 @@
+# Dataset — too large for GitHub, teammates download via kagglehub
+data/raw/
+data/processed/
+data/eda_output/
+
+# Trained model files
+model/
+*.h5
+*.pt
+*.pth
+*.onnx
+*.pkl
+
+# Python environment — never push this
+air_canvas_env/
+__pycache__/
+*.pyc
+*.pyo
+.ipynb_checkpoints/
+
+# Kaggle credentials — NEVER push this
+kaggle.json
+.env
+
+# OS junk
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Jupyter
+*.ipynb_checkpoints
