@@ -29,3 +29,5 @@ desktop.ini
 
 # Jupyter
 *.ipynb_checkpoints
+
+.venv
