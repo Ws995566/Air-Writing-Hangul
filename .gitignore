@@ -31,3 +31,11 @@ desktop.ini
 *.ipynb_checkpoints
 
 .venv
+
+# Mengabaikan virtual environment baru milik David
+env_baru/
+
+# Mengabaikan folder hasil capture kamera/testing lokal
+captures/
+data/
+model_saved/
