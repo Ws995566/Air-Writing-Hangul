@@ -1,20 +1,3 @@
-"""
-run.py — Air Canvas (Tracking & UI)
-====================================
-Modul Air Canvas untuk proyek "Hangul Character Recognition from
-Air-Writing Gestures Using Traditional Computer Vision" — Group 10.
-
-Dikembangkan oleh: David Christian Golden Mahaviro (2802501306)
-
-CHANGELOG v2:
-  - FIX: PEACE butuh minimum stroke sebelum bisa trigger (anti-prematur)
-  - FIX: PEACE cooldown 45 frame agar tidak multi-trigger saat ditahan
-  - FIX: save_canvas_snapshot menyimpan snapshot SEBELUM clear, bukan sesudah
-  - NEW: Fitur multi-kata — tulis kata → PEACE → tulis kata → PEACE → FIST gabung
-  - NEW: Word buffer ditampilkan di toolbar bawah
-  - NEW: FIST = gabungkan semua kata yang sudah dikumpulkan → tampilkan hasil akhir
-"""
-
 import os
 import sys
 import site
@@ -51,18 +34,14 @@ WINDOW_NAME      = "Hangul Air Canvas  |  Q=Quit  Z=Undo  C=Clear  S=Save"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 # ── Tuning gestur ──────────────────────────────────────────────────────────
-# Jumlah frame PEACE harus konsisten sebelum trigger (anti-jitter gestur)
-PEACE_CONFIRM_FRAMES = 12   # ~0.4 detik @30fps — naikkan jika masih prematur
-# Cooldown setelah satu trigger PEACE (frame) — cegah double-trigger
-PEACE_COOLDOWN_FRAMES = 45  # ~1.5 detik @30fps
-# Jumlah frame FIST harus konsisten sebelum trigger gabung kata
-FIST_CONFIRM_FRAMES  = 20   # ~0.67 detik @30fps
-# Minimum jumlah stroke di kanvas agar PEACE boleh trigger klasifikasi
+PEACE_CONFIRM_FRAMES = 12   
+PEACE_COOLDOWN_FRAMES = 45  
+FIST_CONFIRM_FRAMES  = 20   
 MIN_STROKES_TO_CLASSIFY = 2
 
 
 # ╔══════════════════════════════════════════════════════════════════════════╗
-# ║  SECTION 1 — PREPROCESSING + HOG (Wesley + Hasan pipeline)              ║
+# ║  SECTION 1 — PREPROCESSING + HOG (Wesley + Hasan pipeline)               ║
 # ╚══════════════════════════════════════════════════════════════════════════╝
 
 IMG_SIZE            = 64
@@ -515,7 +494,6 @@ class UIRenderer:
             cy = py1 + 110
 
             if final_sentence:
-                # Tampilkan kalimat gabungan
                 cv2.putText(frame, "Kalimat gabungan:", (px1+30, cy),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.58, (120,120,140), 1)
                 cy += 44
@@ -523,7 +501,6 @@ class UIRenderer:
                     cv2.putText(frame, line, (px1+50, cy),
                                 cv2.FONT_HERSHEY_DUPLEX, 1.3, (255, 255, 180), 2, cv2.LINE_AA)
                     cy += 46
-                # Juga tampilkan kata-kata individual di bawahnya
                 cy += 10
                 cv2.putText(frame, f"Kata-kata: {' + '.join(word_buffer)}", (px1+30, cy),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.55, (160,160,200), 1)
@@ -538,7 +515,6 @@ class UIRenderer:
                     cv2.putText(frame, f"Confidence: {classifier.confidence}", (px1+30, cy),
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.55, (180,200,255), 1)
                     cy += 30
-                    # Tampilkan juga kata buffer saat ini
                     if word_buffer:
                         cv2.putText(frame, f"Buffer: {' + '.join(word_buffer)}  (Kepal=gabung)",
                                     (px1+30, cy), cv2.FONT_HERSHEY_SIMPLEX, 0.52, (0,200,120), 1)
@@ -646,17 +622,15 @@ def main():
     was_drawing     = False
     mode_label      = "HOVER"
 
-    # Gesture confirmation counters (cegah trigger dari 1 frame saja)
-    peace_counter   = 0   # naik tiap frame PEACE terdeteksi, reset jika bukan PEACE
-    peace_cooldown  = 0   # countdown setelah trigger, selama ini PEACE diabaikan
-    fist_counter    = 0   # naik tiap frame FIST terdeteksi
-
-    # Multi-kata buffer: list of (label_string, snapshot_bgr)
-    word_buffer        = []   # label kata-kata yang sudah dikumpulkan
-    word_snapshots     = []   # snapshot kanvas tiap kata (untuk save)
-    final_sentence     = ""   # hasil gabungan setelah FIST
-    last_snapshot      = None # snapshot terakhir yang di-save (fix foto hitam)
-
+    peace_counter   = 0   
+    peace_cooldown  = 0   
+    fist_counter    = 0   
+  
+    word_buffer        = []   
+    word_snapshots     = []   
+    final_sentence     = ""   
+    last_snapshot      = None 
+  
     try:
         while True:
             ret, frame = cap.read()
@@ -697,7 +671,6 @@ def main():
 
                 is_eraser = (ui.selected_palette_idx == ERASER_IDX)
 
-                # ── Kurangi cooldown setiap frame ────────────────────────────
                 if peace_cooldown > 0:
                     peace_cooldown -= 1
 
@@ -727,39 +700,29 @@ def main():
                     if was_drawing: canvas_engine.end_stroke(); was_drawing = False
                     fist_counter = 0
 
-                    # Naikkan counter hanya jika cooldown sudah habis DAN
-                    # kanvas punya cukup stroke
                     enough_strokes = canvas_engine.stroke_count() >= MIN_STROKES_TO_CLASSIFY
                     if peace_cooldown == 0 and enough_strokes:
                         peace_counter += 1
                     else:
                         peace_counter = 0
 
-                    # Tampilkan progress arc di ujung jari
                     ui.draw_peace_progress(frame, fx, fy, peace_counter, PEACE_CONFIRM_FRAMES)
 
                     if peace_counter >= PEACE_CONFIRM_FRAMES:
-                        # ── TRIGGER KLASIFIKASI ──────────────────────────────
-                        # Ambil snapshot SEBELUM clear (fix foto hitam)
                         snapshot = canvas_engine.get_canvas_snapshot()
                         last_snapshot = snapshot.copy()
 
                         classifier.reset()
                         classifier.submit(snapshot)
 
-                        # Simpan snapshot per-karakter
                         save_snapshot(snapshot, prefix=f"kata{len(word_buffer)+1}")
 
-                        # Kanvas di-clear untuk karakter berikutnya
                         canvas_engine.clear()
 
                         show_result    = True
                         peace_counter  = 0
                         peace_cooldown = PEACE_COOLDOWN_FRAMES
-                        final_sentence = ""   # reset kalimat final, ini baru satu kata
-
-                        # Tunggu classifier selesai (blocking max 2 detik) lalu simpan ke buffer
-                        # Ini dilakukan di loop render (lihat bawah)
+                        final_sentence = ""   
 
                     mode_label = f"KLASIFIKASI ({peace_counter}/{PEACE_CONFIRM_FRAMES})"
 
@@ -776,10 +739,7 @@ def main():
                     ui.draw_fist_progress(frame, fx, fy, fist_counter, FIST_CONFIRM_FRAMES)
 
                     if fist_counter >= FIST_CONFIRM_FRAMES:
-                        # ── GABUNGKAN KATA-KATA ──────────────────────────────
                         final_sentence = " ".join(word_buffer)
-                        # Tampilkan overlay dengan kalimat gabungan
-                        # (gunakan state classifier.state = "DONE" yang sudah ada)
                         show_result  = True
                         fist_counter = 0
                         print(f"[FIST] Kalimat gabungan: {final_sentence}")
@@ -798,14 +758,9 @@ def main():
                 peace_counter = 0; fist_counter = 0
                 mode_label = "TIDAK ADA TANGAN"
 
-            # ── Setelah classifier selesai, simpan label ke word_buffer ─────
-            # (dilakukan di sini agar tidak blocking loop utama)
             if show_result and classifier.state == "DONE" and classifier.label:
-                # Simpan ke buffer hanya jika belum disimpan (cek via final_sentence kosong
-                # dan buffer belum mengandung label ini sebagai elemen terakhir)
                 last_in_buffer = word_buffer[-1] if word_buffer else None
                 if last_in_buffer != classifier.label or final_sentence:
-                    # Hanya push ke buffer saat baru saja dari PEACE (final_sentence kosong)
                     if not final_sentence and (not word_buffer or word_buffer[-1] != classifier.label):
                         word_buffer.append(classifier.label)
                         print(f"[BUFFER] Kata #{len(word_buffer)}: {classifier.label} | Buffer: {word_buffer}")
@@ -821,7 +776,6 @@ def main():
 
             cv2.imshow(WINDOW_NAME, frame)
 
-            # ── Keyboard ─────────────────────────────────────────────────────
             key = cv2.waitKey(1) & 0xFF
             if key == ord('q'):
                 print("[QUIT] Menutup..."); break
@@ -829,11 +783,9 @@ def main():
                 show_result = False
                 if not final_sentence:
                     classifier.reset()
-                # Jangan reset word_buffer saat R — user masih mau lanjut nulis kata berikutnya
             elif key == ord('z'):
                 canvas_engine.undo()
             elif key == ord('c'):
-                # Reset TOTAL: kanvas + buffer + hasil
                 canvas_engine.clear(); classifier.reset()
                 word_buffer.clear(); word_snapshots.clear()
                 final_sentence = ""; show_result = False
